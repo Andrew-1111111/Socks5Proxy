@@ -1,4 +1,4 @@
-# SimpleSocks5Proxy (Fork)
+# SimpleSocks5Proxy
 
 Высокопроизводительный SOCKS5-прокси на C#/.NET 9 с поддержкой TCP CONNECT и UDP ASSOCIATE, привязкой исходящего трафика к нужному интерфейсу, встроенным DNS-резолвингом и расширенным логированием.
 
