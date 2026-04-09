@@ -61,13 +61,13 @@ dotnet build Socks5Proxy.sln -c Release
 {
   "ListenIPAddress": "0.0.0.0",
   "ListenPort": 1080,
-  "OutputIPAddress": "10.8.0.10",
-  "DnsServer": "172.29.172.254",
+  "OutputIPAddress": "10.8.0.1",
+  "DnsServer": "8.8.8.8",
   "MaxConnections": 1000,
   "IPAddressMappings": [
     {
-      "IPAddress": "192.168.250.101",
-      "FriendlyName": "Windows 10"
+      "IPAddress": "192.168.0.100",
+      "FriendlyName": "PC 1"
     }
   ]
 }
@@ -120,6 +120,4 @@ dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 
 ## Лицензия и атрибуция
 
-Проект распространяется как форк оригинального [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).  
-Убедитесь, что в репозитории сохранена лицензия MIT и атрибуция оригинальному автору при дальнейшем распространении и модификациях.
-
+Проект распространяется как форк оригинального [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).
