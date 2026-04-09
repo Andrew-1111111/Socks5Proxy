@@ -411,8 +411,13 @@ internal class ConnectionHandler : IAsyncDisposable
 
         try
         {
-            socket.NoDelay = true;                          // Enable Naggle
+            // Set socket options
+            socket.SendTimeout = NetworkConfiguration.SendTimeout;
+            socket.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;
+            socket.SendBufferSize = NetworkConfiguration.SendBufferSize;
+            socket.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
             socket.LingerState = new LingerOption(true, 0); // RST send
+            socket.NoDelay = true;                          // Enable Naggle
             socket.Bind(new IPEndPoint(NetworkConfiguration.OutputInterfaceIP, 0));
 
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

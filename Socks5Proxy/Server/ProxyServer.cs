@@ -70,11 +70,16 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
                         continue;
                     }
 
+                    // Get TCP client
                     var tcpClient = await _listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
 
                     // Socket options
-                    tcpClient.LingerState = NetworkConfiguration.LingerState;   // RST send
-                    tcpClient.NoDelay = NetworkConfiguration.NoDelay;           // Enable Naggle
+                    tcpClient.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;     // 30 seconds
+                    tcpClient.SendTimeout = NetworkConfiguration.SendTimeout;           // 30 seconds
+                    tcpClient.SendBufferSize = NetworkConfiguration.SendBufferSize;
+                    tcpClient.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
+                    tcpClient.NoDelay = NetworkConfiguration.NoDelay;                   // Disable Nagle's algorithm for better latency
+                    tcpClient.LingerState = NetworkConfiguration.LingerState;           // RST send
 
                     // Handle client connection in background task
                     var connectionId = Interlocked.Increment(ref _connectionIdCounter);
@@ -146,12 +151,6 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
 
         try
         {
-            // Socket options
-            tcpClient.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;     // 30 seconds
-            tcpClient.SendTimeout = NetworkConfiguration.SendTimeout;           // 30 seconds
-            tcpClient.NoDelay = NetworkConfiguration.NoDelay;                   // Disable Nagle's algorithm for better latency
-            tcpClient.LingerState = NetworkConfiguration.LingerState;           // RST send
-
             handler = new ConnectionHandler(tcpClient, _dnsClient, _logger, _resolver);
 
             // Add to active connections using ConcurrentDictionary

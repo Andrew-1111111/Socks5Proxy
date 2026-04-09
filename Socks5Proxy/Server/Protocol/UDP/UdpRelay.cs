@@ -88,8 +88,8 @@ namespace Socks5Proxy.Server.Protocol.UDP
                 });
 
             _udpClient = new UdpClient(_clientTcpEndPoint.AddressFamily);
-            _udpClient.Client.ReceiveBufferSize = 1024 * 1024;
-            _udpClient.Client.SendBufferSize = 1024 * 1024;
+            _udpClient.Client.SendBufferSize = NetworkConfiguration.SendBufferSize;
+            _udpClient.Client.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
             _udpClient.Client.Bind(new IPEndPoint(NetworkConfiguration.OutputInterfaceIP, 0));
 
             LocalEndPoint = (IPEndPoint)_udpClient.Client.LocalEndPoint!;

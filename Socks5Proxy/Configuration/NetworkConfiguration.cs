@@ -41,24 +41,22 @@ internal static class NetworkConfiguration
 
     #region Socket Options
 
-    /// <summary>
-    /// The send timeout for sockets in milliseconds.
-    /// </summary>
-    internal static int SendTimeout { get; set; } = 30000;
+    // The send timeout for sockets in milliseconds.
+    internal static int SendTimeout { get; set; } = 120_000;
 
-    /// <summary>
-    /// The receive timeout for sockets in milliseconds.
-    /// </summary>
-    internal static int ReceiveTimeout { get; set; } = 30000;
+    // The receive timeout for sockets in milliseconds.
+    internal static int ReceiveTimeout { get; set; } = 120_000;
 
-    /// <summary>
-    /// The linger state for TCP sockets.
-    /// </summary>
+    // Send buffer size in bytes (default: 1 MB).
+    internal static int SendBufferSize = 1024 * 1024;
+
+    // Receive buffer size in bytes (default: 1 MB).
+    internal static int ReceiveBufferSize = 1024 * 1024;
+
+    // The linger state for TCP sockets.
     internal static LingerOption LingerState { get; set; } = new LingerOption(true, 0);
 
-    /// <summary>
-    /// Disables the Nagle algorithm if true. Default: true (NoDelay enabled).
-    /// </summary>
+    // Disables the Nagle algorithm if true. Default: true (NoDelay enabled).
     internal static bool NoDelay { get; set; } = true;
 
     #endregion
