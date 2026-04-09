@@ -9,7 +9,7 @@ namespace Socks5Proxy.Server.Protocol.UDP;
 internal class DnsCacheEntry
 {
     /// <summary>Resolved IP addresses (never null).</summary>
-    public IPAddress[] Addresses { get; set; } = [];
+    public IPAddress Address { get; set; } = IPAddress.None;
 
     /// <summary>Expiry time of this cache entry.</summary>
     public DateTime Expiry { get; set; }

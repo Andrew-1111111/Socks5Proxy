@@ -463,7 +463,7 @@ internal class ConnectionHandler : IAsyncDisposable
             _logger.Information("Setting up UDP ASSOCIATE");
 
             var clientEndPoint = (IPEndPoint)_client.Client.RemoteEndPoint!;
-            _udpRelay = new UdpRelay(clientEndPoint, _logger, _resolver);
+            _udpRelay = new UdpRelay(clientEndPoint, _dnsClient, _logger, _resolver);
 
             // Send success reply with UDP relay endpoint
             await SendReplyAsync(ReplyCode.Succeeded, _udpRelay.LocalEndPoint, cancellationToken).ConfigureAwait(false);

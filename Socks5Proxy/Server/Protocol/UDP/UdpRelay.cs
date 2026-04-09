@@ -1,5 +1,6 @@
 ﻿using Serilog;
 using Socks5Proxy.Friendly;
+using Socks5Proxy.Server.Protocol.DNS;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -7,30 +8,33 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Socks5Proxy.Server.Protocol.UDP
 {
     /// <summary>
-    /// High-performance UDP relay for SOCKS5 UDP ASSOCIATE command (RFC 1928).
+    /// High-performance UDP relay for SOCKS5 UDP ASSOCIATE (RFC 1928).
     /// 
-    /// Features:
-    /// - Full IPv4 / IPv6 / DOMAIN support
-    /// - Server-side DNS resolution with caching
-    /// - Fragmentation reassembly (FRAG support)
-    /// - Strict client endpoint validation (anti-spoofing)
-    /// - Destination filtering (prevents open UDP proxy abuse)
-    /// - Idle timeout for automatic session cleanup
-    /// - Low allocations using ArrayPool
+    /// Key features:
+    /// - Supports IPv4, IPv6, and DOMAIN address types
+    /// - Server-side DNS resolution with cache and anti-stampede protection
+    /// - Bounded channel for burst protection (prevents packet loss under load)
+    /// - Drop policy (DropOldest) to maintain responsiveness under pressure
+    /// - Strict client endpoint tracking (anti-spoofing)
+    /// - Destination validation (prevents open proxy abuse)
+    /// - Idle timeout and periodic cleanup
+    /// - Low allocations via ArrayPool
     /// 
-    /// Notes:
-    /// - DNS is always resolved on the proxy (intended behavior)
-    /// - Fragmentation is rarely used in practice but fully supported
+    /// Design decisions:
+    /// - FRAG is not supported (dropped) as it is rarely used and unstable in practice
+    /// - DNS resolution is always performed on the proxy side
     /// </summary>
     internal class UdpRelay : IAsyncDisposable
     {
         private readonly ILogger _logger;
         private readonly UdpClient _udpClient;
+        private readonly DnsClient _dnsClient;
         private readonly IPEndPoint _clientTcpEndPoint;
         private IPEndPoint? _actualClientUdpEndPoint;
         private readonly FriendlyNameResolver _resolver;
@@ -38,47 +42,60 @@ namespace Socks5Proxy.Server.Protocol.UDP
         private readonly CancellationTokenSource _cts;
         private readonly Task _relayTask;
 
+        private readonly Channel<UdpReceiveResult> _channel;
+
         private readonly ConcurrentDictionary<string, DnsCacheEntry> _dnsCache;
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _dnsLocks;
         private readonly ConcurrentDictionary<IPEndPoint, DateTime> _activeDestinations;
-        private readonly ConcurrentDictionary<string, FragmentBuffer> _fragments;
 
         private int _disposed;
         private DateTime _lastActivity = DateTime.UtcNow;
+        private DateTime _lastCleanup = DateTime.UtcNow;
 
         private static readonly TimeSpan DnsCacheTtl = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan CleanupInterval = TimeSpan.FromSeconds(10);
 
         /// <summary>
-        /// Gets the local UDP endpoint used for relay.
+        /// Gets the local UDP endpoint used by the relay.
         /// </summary>
         public IPEndPoint LocalEndPoint { get; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="UdpRelay"/> class.
+        /// Initializes a new UDP relay bound to a client TCP session.
         /// </summary>
-        /// <param name="clientEndPoint">Client TCP endpoint to track.</param>
-        /// <param name="logger">Logger instance for logging.</param>
-        /// <param name="resolver">Friendly name resolver for endpoint display.</param>
-        /// <exception cref="ArgumentNullException">Thrown if any argument is null.</exception>
-        public UdpRelay(IPEndPoint clientEndPoint, ILogger logger, FriendlyNameResolver resolver)
+        /// <param name="clientEndPoint">Client TCP endpoint (used for validation).</param>
+        /// <param name="dnsClient">The dns client instance.</param>
+        /// <param name="logger">Logger instance.</param>
+        /// <param name="resolver">Friendly name resolver for logging.</param>
+        public UdpRelay(IPEndPoint clientEndPoint, DnsClient dnsClient, ILogger logger, FriendlyNameResolver resolver)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _clientTcpEndPoint = clientEndPoint ?? throw new ArgumentNullException(nameof(clientEndPoint));
+            _dnsClient = dnsClient ?? throw new ArgumentNullException(nameof(dnsClient));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
 
             _cts = new CancellationTokenSource();
 
             _dnsCache = new(StringComparer.OrdinalIgnoreCase);
+            _dnsLocks = new(StringComparer.OrdinalIgnoreCase);
             _activeDestinations = new();
-            _fragments = new();
+
+            _channel = Channel.CreateBounded<UdpReceiveResult>(
+                new BoundedChannelOptions(65536)
+                {
+                    FullMode = BoundedChannelFullMode.DropOldest
+                });
 
             _udpClient = new UdpClient(_clientTcpEndPoint.AddressFamily);
+            _udpClient.Client.ReceiveBufferSize = 1024 * 1024;
+            _udpClient.Client.SendBufferSize = 1024 * 1024;
             _udpClient.Client.Bind(new IPEndPoint(NetworkConfiguration.OutputInterfaceIP, 0));
 
             LocalEndPoint = (IPEndPoint)_udpClient.Client.LocalEndPoint!;
 
             _logger.Information(
-                "UDP relay started on {LocalEndPoint}{FriendlyLocal} for client {Client}{FriendlyClient}",
+                "UDP relay started on {Local}{FriendlyLocal} for client {Client}{FriendlyClient}",
                 LocalEndPoint,
                 _resolver.FriendlySuffix(LocalEndPoint),
                 _clientTcpEndPoint,
@@ -88,12 +105,13 @@ namespace Socks5Proxy.Server.Protocol.UDP
         }
 
         /// <summary>
-        /// Main UDP relay loop.
-        /// Handles client packets and server responses.
-        /// Applies idle timeout and state cleanup.
+        /// Main receive loop.
+        /// Reads UDP packets and enqueues them for processing.
         /// </summary>
         private async Task RelayPacketsAsync(CancellationToken ct)
         {
+            var processor = Task.Run(() => ProcessPacketsAsync(ct), ct);
+
             try
             {
                 while (!ct.IsCancellationRequested)
@@ -105,83 +123,93 @@ namespace Socks5Proxy.Server.Protocol.UDP
                     }
 
                     UdpReceiveResult result;
+
                     try
                     {
                         result = await _udpClient.ReceiveAsync(ct).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) { break; }
                     catch (ObjectDisposedException) { break; }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(ex, "UDP receive error");
+                        continue;
+                    }
 
                     _lastActivity = DateTime.UtcNow;
 
+                    if (!_channel.Writer.TryWrite(result))
+                    {
+                        _logger.Debug("UDP packet dropped (channel full)");
+                    }
+                }
+            }
+            finally
+            {
+                _channel.Writer.Complete();
+                await processor.ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Processes queued UDP packets (decoupled from socket receive).
+        /// </summary>
+        private async Task ProcessPacketsAsync(CancellationToken ct)
+        {
+            await foreach (var result in _channel.Reader.ReadAllAsync(ct))
+            {
+                try
+                {
                     // Detect actual UDP endpoint of client
                     if (_actualClientUdpEndPoint == null)
                     {
                         if (result.RemoteEndPoint.Address.Equals(_clientTcpEndPoint.Address))
                         {
                             _actualClientUdpEndPoint = result.RemoteEndPoint;
-                            _logger.Debug("Tracked UDP endpoint: {Endpoint}", _actualClientUdpEndPoint);
+
+                            _logger.Debug(
+                                "Tracked UDP endpoint {Endpoint}{Friendly}",
+                                _actualClientUdpEndPoint,
+                                _resolver.FriendlySuffix(_actualClientUdpEndPoint));
                         }
-                        else
-                        {
-                            continue;
-                        }
+                        else continue;
                     }
 
                     if (result.RemoteEndPoint.Equals(_actualClientUdpEndPoint))
-                    {
-                        await HandleClientPacketAsync(result.Buffer, ct).ConfigureAwait(false);
-                    }
+                        await HandleClientPacketAsync(result.Buffer, ct);
                     else
-                    {
-                        await HandleServerResponseAsync(result.Buffer, result.RemoteEndPoint, ct).ConfigureAwait(false);
-                    }
+                        await HandleServerResponseAsync(result.Buffer, result.RemoteEndPoint, ct);
 
-                    CleanupState();
+                    if (DateTime.UtcNow - _lastCleanup > CleanupInterval)
+                    {
+                        CleanupState();
+                        _lastCleanup = DateTime.UtcNow;
+                    }
                 }
-            }
-            finally
-            {
-                _logger.Information("UDP relay stopped for {Client}", _clientTcpEndPoint);
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "UDP processing error");
+                }
             }
         }
 
         /// <summary>
-        /// Handles client UDP packet:
-        /// - Parses SOCKS5 UDP header
-        /// - Reassembles fragments if needed
-        /// - Resolves destination
-        /// - Forwards payload
+        /// Handles UDP packets from client.
+        /// Parses SOCKS5 header and forwards payload.
         /// </summary>
-        /// <param name="buffer">Received UDP packet.</param>
-        /// <param name="ct">Cancellation token.</param>
         private async Task HandleClientPacketAsync(byte[] buffer, CancellationToken ct)
         {
-            if (_actualClientUdpEndPoint == null || buffer.Length < 10)
+            if (_actualClientUdpEndPoint == null || buffer.Length < 4)
                 return;
 
             int offset = 2;
             byte frag = buffer[offset++];
 
-            // Fragmentation support
-            if (frag > 0)
+            // Drop fragmented packets (production-safe)
+            if (frag != 0)
             {
-                string key = Convert.ToHexString(buffer.AsSpan(0, Math.Min(32, buffer.Length)));
-                var fb = _fragments.GetOrAdd(key, _ => new FragmentBuffer());
-
-                fb.Parts[frag] = [.. buffer];
-                fb.Received++;
-
-                if (frag == 0xFF) fb.Expected = frag;
-
-                if (fb.Expected == -1 || fb.Received < fb.Expected)
-                    return;
-
-                buffer = [.. fb.Parts.Where(p => p != null).SelectMany(p => p)];
-                _fragments.TryRemove(key, out _);
-
-                offset = 2;
-                frag = buffer[offset++];
+                _logger.Debug("Fragmented UDP packet dropped");
+                return;
             }
 
             byte atyp = buffer[offset++];
@@ -211,16 +239,11 @@ namespace Socks5Proxy.Server.Protocol.UDP
                     int port = buffer[offset] << 8 | buffer[offset + 1];
                     offset += 2;
 
-                    var addresses = await ResolveDnsWithCacheAsync(domain, ct);
+                    var address = await ResolveDnsWithCacheAsync(domain, ct);
 
-                    var ip = addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
-                    if (ip == null)
-                    {
-                        _logger.Debug("No IPv4 address for {Domain}, skipping", domain);
-                        return;
-                    }
+                    if (address == null || address == IPAddress.None) return;
 
-                    destination = new IPEndPoint(ip, port);
+                    destination = new IPEndPoint(address, port);
                     break;
             }
 
@@ -229,29 +252,26 @@ namespace Socks5Proxy.Server.Protocol.UDP
 
             _activeDestinations[destination] = DateTime.UtcNow;
 
-            var payload = buffer.AsMemory(offset);
-            await _udpClient.SendAsync(payload, destination, ct);
+            try
+            {
+                await _udpClient.SendAsync(buffer.AsMemory(offset), destination, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "UDP send error");
+            }
         }
 
         /// <summary>
-        /// Handles server response:
-        /// - Validates source endpoint (anti-open-proxy)
-        /// - Wraps response into SOCKS5 UDP format
-        /// - Sends back to client
+        /// Handles UDP responses from remote servers and sends them back to client.
         /// </summary>
-        /// <param name="buffer">Response payload.</param>
-        /// <param name="source">Source endpoint of the response.</param>
-        /// <param name="ct">Cancellation token.</param>
         private async Task HandleServerResponseAsync(byte[] buffer, IPEndPoint source, CancellationToken ct)
         {
             if (_actualClientUdpEndPoint == null)
                 return;
 
             if (!_activeDestinations.ContainsKey(source))
-            {
-                _logger.Debug("Dropped unknown source {Source}", source);
                 return;
-            }
 
             int headerLen = source.AddressFamily == AddressFamily.InterNetwork ? 10 : 22;
             var response = ArrayPool<byte>.Shared.Rent(headerLen + buffer.Length);
@@ -282,7 +302,14 @@ namespace Socks5Proxy.Server.Protocol.UDP
 
                 buffer.CopyTo(response.AsSpan(offset));
 
-                await _udpClient.SendAsync(response.AsMemory(0, offset + buffer.Length), _actualClientUdpEndPoint, ct);
+                await _udpClient.SendAsync(
+                    response.AsMemory(0, offset + buffer.Length),
+                    _actualClientUdpEndPoint,
+                    ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "UDP response error");
             }
             finally
             {
@@ -291,48 +318,57 @@ namespace Socks5Proxy.Server.Protocol.UDP
         }
 
         /// <summary>
-        /// Resolves DNS with in-memory cache.
+        /// Resolves domain name using cache with anti-stampede protection.
         /// </summary>
-        /// <param name="domain">Domain name to resolve.</param>
-        /// <param name="ct">Cancellation token.</param>
-        /// <returns>Resolved IP addresses.</returns>
-        private async Task<IPAddress[]> ResolveDnsWithCacheAsync(string domain, CancellationToken ct)
+        private async Task<IPAddress> ResolveDnsWithCacheAsync(string domain, CancellationToken ct)
         {
             if (_dnsCache.TryGetValue(domain, out var cached) && cached.Expiry > DateTime.UtcNow)
-                return cached.Addresses;
+                return cached.Address;
 
-            var addresses = await Dns.GetHostAddressesAsync(domain, ct);
+            var sem = _dnsLocks.GetOrAdd(domain, _ => new SemaphoreSlim(1, 1));
 
-            _dnsCache[domain] = new()
+            await sem.WaitAsync(ct);
+            try
             {
-                Addresses = addresses,
-                Expiry = DateTime.UtcNow.Add(DnsCacheTtl)
-            };
+                if (_dnsCache.TryGetValue(domain, out cached) && cached.Expiry > DateTime.UtcNow)
+                    return cached.Address;
 
-            return addresses;
+                var address = await _dnsClient
+                    .ResolveAsync(domain, ct)
+                    .ConfigureAwait(false);
+
+                _dnsCache[domain] = new()
+                {
+                    Address = address ?? throw new InvalidOperationException("Address is null"),
+                    Expiry = DateTime.UtcNow.Add(DnsCacheTtl)
+                };
+
+                return address;
+            }
+            finally
+            {
+                sem.Release();
+            }
         }
 
         /// <summary>
-        /// Cleans up expired DNS entries, inactive destinations, and fragments.
+        /// Cleans expired DNS entries and inactive destinations.
         /// </summary>
         private void CleanupState()
         {
             var now = DateTime.UtcNow;
 
-            foreach (var key in _dnsCache.Keys)
-                if (_dnsCache.TryGetValue(key, out var e) && e.Expiry < now)
-                    _dnsCache.TryRemove(key, out _);
+            foreach (var kv in _dnsCache)
+                if (kv.Value.Expiry < now)
+                    _dnsCache.TryRemove(kv.Key, out _);
 
             foreach (var kv in _activeDestinations)
                 if (now - kv.Value > IdleTimeout)
                     _activeDestinations.TryRemove(kv.Key, out _);
-
-            if (_fragments.Count > 100)
-                _fragments.Clear();
         }
 
         /// <summary>
-        /// Stops the UDP relay gracefully.
+        /// Stops the relay.
         /// </summary>
         public async Task StopAsync()
         {
@@ -345,7 +381,7 @@ namespace Socks5Proxy.Server.Protocol.UDP
         }
 
         /// <summary>
-        /// Asynchronously disposes the UDP relay.
+        /// Disposes the relay asynchronously.
         /// </summary>
         public async ValueTask DisposeAsync()
         {
