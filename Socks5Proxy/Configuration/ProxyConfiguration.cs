@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Net;
+using System.Threading;
 
 namespace Socks5Proxy.Configuration;
 
@@ -24,13 +25,16 @@ internal class ProxyConfiguration
     /// <summary>
     /// The output IP address to destination connections. Can be IPv4, IPv6, or "0.0.0.0" for all interfaces.
     /// </summary>
-    [Required(ErrorMessage = "OutputIPAddress is required.")]
-    public string OutputIPAddress { get; set; } = string.Empty;
+    public string? OutputIPAddress { get; set; }
+
+    /// <summary>
+    /// The output network interface name to destination connections.
+    /// </summary>
+    public string? OutputInterfaceName { get; set; }
 
     /// <summary>
     /// DNS server address. Can be IPv4, IPv6.
     /// </summary>
-    [Required(ErrorMessage = "DNS server is required.")]
     public string DnsServer { get; set; } = string.Empty;
 
     /// <summary>
@@ -45,58 +49,51 @@ internal class ProxyConfiguration
     public int MaxConnections { get; set; } = 1000;
 
     /// <summary>
+    /// Delay before execution in seconds (0 - no delay). Default: 0.
+    /// </summary>
+    [Range(0, int.MaxValue, ErrorMessage = "RunDelayS must be 0 or a positive number.")]
+    public int RunDelayS { get; set; } = 0;
+
+    /// <summary>
     /// Validates that the IP address is valid.
     /// </summary>
     /// <returns>True if the configuration is valid, otherwise false.</returns>
     public bool IsValid(out string errorMessage)
     {
-        errorMessage = string.Empty;
-
-        // Validate IP address
-        if (string.IsNullOrWhiteSpace(ListenIPAddress))
+        // Wait N second before run application
+        if (RunDelayS > 0)
         {
-            errorMessage = "ListenIPAddress cannot be null or empty.";
-            return false;
+            Thread.Sleep(TimeSpan.FromSeconds(RunDelayS));
         }
 
-        if (!IPAddress.TryParse(ListenIPAddress, out _))
-        {
-            errorMessage = $"Invalid IP address: {ListenIPAddress}";
+        // Set listen address and port
+        if (!NetworkConfiguration.SetServerInterfaceIP(ListenIPAddress, ListenPort, out errorMessage)) 
             return false;
+
+        // Validate and set output IP address and port
+        if (!string.IsNullOrWhiteSpace(OutputIPAddress))
+        {
+            if (!NetworkConfiguration.SetOutputInterfaceIP(OutputIPAddress, out errorMessage)) 
+                return false;
         }
 
-        // Validate port range
-        if (ListenPort < 1 || ListenPort > 65535)
+        // Validate and set output network interface name
+        if (!string.IsNullOrWhiteSpace(OutputInterfaceName))
         {
-            errorMessage = $"Invalid port: {ListenPort}. Port must be between 1 and 65535.";
-            return false;
+            if (!NetworkConfiguration.SetOutputInterfaceName(OutputInterfaceName, out errorMessage)) 
+                return false;
         }
 
-        // Validate output IP address
-        if (string.IsNullOrWhiteSpace(OutputIPAddress))
+        // Validate and set Dns server
+        if (!string.IsNullOrWhiteSpace(DnsServer))
         {
-            errorMessage = "OutputIPAddress cannot be null or empty.";
-            return false;
+            if (!NetworkConfiguration.SetDnsIP(DnsServer, out errorMessage))
+                return false;
         }
 
-        if (!IPAddress.TryParse(OutputIPAddress, out _))
-        {
-            errorMessage = $"Invalid output IP address: {OutputIPAddress}";
+        // Set Max connections
+        if (!NetworkConfiguration.SetMaxConnections(MaxConnections, out errorMessage))
             return false;
-        }
-
-        // Validate DNS
-        if (string.IsNullOrWhiteSpace(DnsServer))
-        {
-            errorMessage = "DNS server cannot be null or empty.";
-            return false;
-        }
-
-        if (!IPAddress.TryParse(DnsServer, out _))
-        {
-            errorMessage = $"Invalid DNS server address: {DnsServer}";
-            return false;
-        }
 
         return true;
     }

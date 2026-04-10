@@ -59,13 +59,15 @@ dotnet build Socks5Proxy.sln -c Release
 {
   "ListenIPAddress": "0.0.0.0",
   "ListenPort": 1080,
-  "OutputIPAddress": "10.8.0.1",
+  "OutputIPAddress": "",
+  "OutputInterfaceName": "tap1",
   "DnsServer": "8.8.8.8",
   "MaxConnections": 1000,
+  "RunDelayS": 0,
   "IPAddressMappings": [
     {
-      "IPAddress": "192.168.0.100",
-      "FriendlyName": "PC 1"
+      "IPAddress": "192.168.0.10",
+      "FriendlyName": "PC_1"
     }
   ]
 }
@@ -89,9 +91,11 @@ dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 
 - `ListenIPAddress` - IP, на котором слушает SOCKS5-сервер (например, `127.0.0.1` или `0.0.0.0`)
 - `ListenPort` - порт прослушивания (`1..65535`)
-- `OutputIPAddress` - локальный IP/интерфейс для исходящих подключений
+- `OutputIPAddress` - локальный IP адрес интерфейса, для исходящих подключений
+- `OutputInterfaceName` - имя сетевого интерфейса, для исходящих подключений (имеет больший приоритет, чем IP адрес)
 - `DnsServer` - IP DNS-сервера для резолвинга доменных имен
-- `MaxConnections` - лимит одновременных подключений (`0` = без лимита)
+- `MaxConnections` - лимит одновременных подключений (`0` - без лимита)
+- `RunDelayS` - задержка в секундах, при запуске приложения (`0` - без задержки)
 - `IPAddressMappings` - массив отображений IP -> FriendlyName для логов
 
 ## Логирование

@@ -58,12 +58,6 @@ internal class Program
                 return 3; // Terminate current instance, elevated one may have started
             }
 
-            // Set network configuration
-            NetworkConfiguration.SetServerInterfaceIP(proxyConfig.ListenIPAddress, proxyConfig.ListenPort);
-            NetworkConfiguration.SetOutputInterfaceIP(proxyConfig.OutputIPAddress);
-            NetworkConfiguration.SetDnsIP(proxyConfig.DnsServer);
-            NetworkConfiguration.SetMaxConnections(proxyConfig.MaxConnections);
-
             // Create friendly name resolver (safe even if no mappings)
             var resolver = new FriendlyNameResolver(proxyConfig.IPAddressMappings, logger);
 
@@ -81,10 +75,10 @@ internal class Program
             // Create and start the server
             server = new ProxyServer(logger, resolver);
 
-            logger.Information("DNS address: {Address}", proxyConfig.DnsServer);
-            logger.Information("OutputIPAddress: {Address}", proxyConfig.OutputIPAddress);
-            logger.Information("Starting SOCKS5 proxy server on: {Address}:{Port}", 
-                proxyConfig.ListenIPAddress, proxyConfig.ListenPort);
+            logger.Information("OutputIPAddress: {Address}", NetworkConfiguration.OutputInterfaceIP);
+            logger.Information("DNS address: {Address}", NetworkConfiguration.DnsServer);
+            logger.Information("Starting SOCKS5 proxy server on: {Address}:{Port}",
+                NetworkConfiguration.ListenIPAddress, NetworkConfiguration.ListenPort);
 
             await server.StartAsync(cancellationTokenSource.Token).ConfigureAwait(false);
 

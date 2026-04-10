@@ -1,9 +1,11 @@
 ﻿{
   "ListenIPAddress": "0.0.0.0",
   "ListenPort": 1080,
-  "OutputIPAddress": "10.8.0.10",
+  "OutputIPAddress": "",
+  "OutputInterfaceName": "tap1",
   "DnsServer": "172.29.172.254",
   "MaxConnections": 1000,
+  "RunDelayS": 30,
   "IPAddressMappings": [
     {
       "IPAddress": "192.168.250.101",
