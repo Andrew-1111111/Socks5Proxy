@@ -59,9 +59,7 @@ dotnet build Socks5Proxy.sln -c Release
 {
   "ListenIPAddress": "0.0.0.0",
   "ListenPort": 1080,
-  "OutputIPAddress": [
-    ""
-  ],
+  "OutputIPAddress": [],
   "OutputInterfaceName": [
     "tap1",
     "tun2"
@@ -107,7 +105,7 @@ dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 
 - Настраивается через `Socks5Proxy/appsettings.json` (Serilog).
 - По умолчанию используется вывод в консоль.
-- Friendly mapping добавляет суффикс вида ` (MyHost)` к IP/endpoint в сообщениях логов.
+- Friendly mapping добавляет суффикс вида `(MyHost)` к IP/endpoint в сообщениях логов.
 
 ## Безопасность и эксплуатационные особенности
 
@@ -115,15 +113,6 @@ dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 - Контроль источников в UDP relay для снижения риска open-proxy abuse.
 - Ограничение количества соединений и корректное завершение активных задач при остановке.
 - При отсутствии `proxy.json` приложение завершится с понятной ошибкой и подсказкой по `--config`.
-
-## Структура проекта
-
-- `Socks5Proxy/Program.cs` - точка входа, загрузка конфигурации, запуск сервера
-- `Socks5Proxy/Server/ProxyServer.cs` - TCP listener и управление жизненным циклом соединений
-- `Socks5Proxy/Server/Protocol/ConnectionHandler.cs` - SOCKS5 handshake, обработка команд, форвардинг
-- `Socks5Proxy/Server/Protocol/UDP/UdpRelay.cs` - UDP ASSOCIATE relay
-- `Socks5Proxy/Configuration/` - модели и валидация конфигурации
-- `Socks5Proxy/Friendly/` - friendly name resolver для логов
 
 ## Лицензия и атрибуция
 
