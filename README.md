@@ -1,60 +1,62 @@
 # Socks5Proxy
 
-Высокопроизводительный SOCKS5-прокси на C#/.NET 9 с привязкой исходящего трафика к нужному интерфейсу, встроенным DNS-резолвингом и расширенным логированием.
+**English** | [Русский](README.ru.md)
 
-## Важно: происхождение проекта
+A high-performance SOCKS5 proxy in C#/.NET 9 with outbound traffic binding to a chosen interface, built-in DNS resolution, and detailed logging.
 
-Этот репозиторий является глубоко переработанным форком оригинального проекта [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).
+## Important: project origin
 
-## Основные возможности
+This repository is a heavily reworked fork of the original [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).
 
-- Полная базовая поддержка SOCKS5 (RFC 1928) для `CONNECT` и `UDP ASSOCIATE`.
-- Поддержка адресов `IPv4`, `IPv6` и доменных имен.
-- Асинхронная архитектура с обработкой большого количества параллельных подключений.
-- Ограничение числа одновременных соединений (`MaxConnections`), `0` = без ограничений.
-- Привязка исходящих TCP/UDP-соединений к заданному IP-интерфейсу (`OutputIPAddress`).
-- Разрешение доменов через настраиваемый DNS-сервер (`DnsServer`) с кэшем.
-- Поддержка UDP relay с валидацией клиента, фильтрацией источников и idle-timeout.
-- Friendly-имена для IP в логах (`IPAddressMappings`) для удобной диагностики.
-- Защита от запуска второй копии приложения (single instance guard).
-- Корректное завершение по `Ctrl+C` и освобождение ресурсов.
-- Структурированное логирование через Serilog.
+## Features
 
-## Что поддерживается по протоколу
+- Full baseline SOCKS5 (RFC 1928) support for `CONNECT` and `UDP ASSOCIATE`.
+- Support for `IPv4`, `IPv6`, and domain names.
+- Asynchronous architecture handling many concurrent connections.
+- Limit on simultaneous connections (`MaxConnections`); `0` means unlimited.
+- Bind outbound TCP/UDP to a specific local IP (`OutputIPAddress`).
+- Resolve hostnames via a configurable DNS server (`DnsServer`) with caching.
+- UDP relay with client validation, source filtering, and idle timeout.
+- Friendly names for IPs in logs (`IPAddressMappings`) for easier troubleshooting.
+- Single-instance guard to prevent a second copy from running.
+- Clean shutdown on `Ctrl+C` and proper resource cleanup.
+- Structured logging via Serilog.
 
-### Поддерживается
+## Protocol support
+
+### Supported
 
 - SOCKS5 version `0x05`
-- Метод аутентификации `No Authentication` (`0x00`)
-- Метод аутентификации `Username/Password` (`0x02`)
-- Команда `CONNECT` (TCP)
-- Команда `UDP ASSOCIATE` (UDP relay)
-- Адреса IPv4, IPv6, Domain
+- Authentication method `No Authentication` (`0x00`)
+- Authentication method `Username/Password` (`0x02`)
+- Command `CONNECT` (TCP)
+- Command `UDP ASSOCIATE` (UDP relay)
+- IPv4, IPv6, and domain addresses
 
-### Не поддерживается
+### Not supported
 
-- GSSAPI метод аутентификации SOCKS5
-- Команда BIND
+- GSSAPI authentication for SOCKS5
+- BIND command
 
-## Требования
+## Requirements
 
-- .NET 9 SDK/Runtime
-- Windows/Linux/macOS
-- Права администратора/root (приложение проверяет это на старте и пытается перезапуститься с повышением прав,повышенные права нужны для доступа к портам 1-1024)
+- .NET 9 SDK / runtime
+- Windows / Linux / macOS
+- Administrator / root privileges (the app checks this at startup and may relaunch with elevation; elevated rights are needed for binding to ports 1–1024)
 
-## Быстрый запуск
+## Quick start
 
-### 1) Сборка
+### 1) Build
 
 ```bash
 dotnet build Socks5Proxy.sln -c Release
 ```
 
-### 2) Настройка `proxy.json`
+### 2) Configure `proxy.json`
 
-Файл расположен в `Socks5Proxy/proxy.json`.
+The file lives at `Socks5Proxy/proxy.json`.
 
-Пример:
+Example:
 
 ```json
 {
@@ -79,46 +81,46 @@ dotnet build Socks5Proxy.sln -c Release
 }
 ```
 
-### 3) Запуск
+### 3) Run
 
-Из корня репозитория:
+From the repository root:
 
 ```bash
 dotnet run --project Socks5Proxy
 ```
 
-Или запуск с явным конфигом:
+Or with an explicit config path:
 
 ```bash
 dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 ```
 
-## Параметры конфигурации
+## Configuration
 
-- `ListenIPAddress` — IP-адрес, на котором слушает SOCKS5-сервер (например, 127.0.0.1 или 0.0.0.0).
-- `ListenPort` — TCP-порт прослушивания (диапазон: 1–65535).
-- `OutputIPAddress` — список локальных IP-адресов сетевых интерфейсов для исходящих подключений. Приложение выбирает первый доступный рабочий адрес. Может быть null.
-- `OutputInterfaceName` — список имён сетевых интерфейсов для исходящих подключений. Приложение выбирает первый доступный рабочий интерфейс. Имеет приоритет над OutputIPAddress. Может быть null.
-- `DnsServer` — IP-адрес DNS-сервера для разрешения доменных имён. Может быть null.
-- `MaxConnections` — максимальное количество одновременных подключений. Значение 0 означает отсутствие ограничения.
-- `RunDelayS` — задержка запуска приложения в секундах. Значение 0 означает отсутствие задержки.
-- `IPAddressMappings` — массив сопоставлений IP-адресов и человекочитаемых имён для логирования.
-- `Username` — имя пользователя для SOCKS5-аутентификации. Не используйте это поле, если нужен `No Authentication` метод аутентификации. Может быть null.
-- `Password` — пароль для SOCKS5-аутентификации. Не используйте это поле, если нужен `No Authentication` метод аутентификации. Может быть null.
+- `ListenIPAddress` — IP address the SOCKS5 server listens on (e.g. `127.0.0.1` or `0.0.0.0`).
+- `ListenPort` — TCP listen port (range: 1–65535).
+- `OutputIPAddress` — list of local interface IPs for outbound connections. The app picks the first available working address. May be `null`.
+- `OutputInterfaceName` — list of network interface names for outbound connections. The app picks the first available working interface. Takes precedence over `OutputIPAddress`. May be `null`.
+- `DnsServer` — DNS server IP for resolving domain names. May be `null`.
+- `MaxConnections` — maximum concurrent connections. `0` means no limit.
+- `RunDelayS` — startup delay in seconds. `0` means no delay.
+- `IPAddressMappings` — array of IP-to-friendly-name mappings for logging.
+- `Username` — SOCKS5 username. Leave unused for `No Authentication`. May be `null`.
+- `Password` — SOCKS5 password. Leave unused for `No Authentication`. May be `null`.
 
-## Логирование
+## Logging
 
-- Настраивается через `Socks5Proxy/appsettings.json` (Serilog).
-- По умолчанию используется вывод в консоль.
-- Friendly mapping добавляет суффикс вида `(MyHost)` к IP/endpoint в сообщениях логов.
+- Configured in `Socks5Proxy/appsettings.json` (Serilog).
+- Defaults to console output.
+- Friendly mappings add a suffix like `(MyHost)` to IPs/endpoints in log messages.
 
-## Безопасность и эксплуатационные особенности
+## Security and operations
 
-- Таймауты рукопожатия/запросов для защиты от "медленных" клиентов.
-- Контроль источников в UDP relay для снижения риска open-proxy abuse.
-- Ограничение количества соединений и корректное завершение активных задач при остановке.
-- При отсутствии `proxy.json` приложение завершится с понятной ошибкой и подсказкой по `--config`.
+- Handshake/request timeouts to mitigate slow-client issues.
+- UDP relay source control to reduce open-proxy abuse risk.
+- Connection limits and orderly teardown of active work on shutdown.
+- If `proxy.json` is missing, the app exits with a clear error and a hint about `--config`.
 
-## Лицензия и атрибуция
+## License and attribution
 
-Проект распространяется как форк оригинального [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).
+This project is distributed as a fork of the original [RickyLin/SimpleSocks5Proxy](https://github.com/RickyLin/SimpleSocks5Proxy).
