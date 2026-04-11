@@ -49,7 +49,8 @@ internal class Program
             var proxyConfig = LoadProxyConfiguration(configuration, logger);
             if (proxyConfig == null)
             {
-                return 2; // Error loading configuration
+                logger.Error("Failed to load configuration..");
+                return 2; // Error configuration loading
             }
 
             // Ensure elevated privileges
@@ -62,7 +63,7 @@ internal class Program
             // Add Firewall rules (ONLY FOR WINDOWS)
             if (OperatingSystem.IsWindows())
             {
-                if (!WindowsFirewallHelper.AllowApplication(Environment.ProcessPath!, 
+                if (!WindowsFirewallHelper.AllowApplication(Environment.ProcessPath!,
                     Path.GetFileNameWithoutExtension(Environment.ProcessPath!)))
                 {
                     logger.Error("Failed to apply Windows Firewall rules for this application. " +
@@ -75,7 +76,7 @@ internal class Program
 
             // Setup cancellation token for graceful shutdown
             using var cancellationTokenSource = new CancellationTokenSource();
-            
+
             // Handle Ctrl+C gracefully
             Console.CancelKeyPress += (sender, e) =>
             {
@@ -99,13 +100,33 @@ internal class Program
         }
         catch (OperationCanceledException)
         {
-            logger?.Information("Server operation was cancelled.");
+            if (logger != null)
+            {
+                logger.Information("Server operation was cancelled.");
+            }
+            else Console.WriteLine("Server operation was cancelled.");
+
             return 0;
+        }
+        catch (FileNotFoundException ex)
+        {
+            if (logger != null)
+            {
+                logger.Error(ex, "Failed to load configuration.");
+            }
+            else Console.WriteLine(ex.Message);
+
+            return 4;
         }
         catch (Exception ex)
         {
-            logger?.Error(ex, "Fatal error occurred.");
-            return 4;
+            if (logger != null)
+            {
+                logger.Error(ex, "Fatal error occurred.");
+            }
+            else Console.WriteLine(ex);
+
+            return 5;
         }
         finally
         {
@@ -116,14 +137,17 @@ internal class Program
             }
             catch (Exception ex)
             {
-                logger?.Error(ex, "Error disposing server.");
+                if (logger != null)
+                {
+                    logger?.Error(ex, "Error disposing server.");
+                }
+                else Console.WriteLine(ex);
             }
 
             Console.WriteLine($"{Environment.NewLine}Press any key for exit...");
             Console.ReadKey();
 
-            // Ensure all logs are flushed
-            Log.CloseAndFlush();
+            Log.CloseAndFlush(); // Ensure all logs are flushed
         }
     }
 
@@ -150,7 +174,7 @@ internal class Program
         var fullProxyConfigPath = Path.IsPathRooted(proxyConfigPath) 
             ? proxyConfigPath 
             : Path.Combine(Directory.GetCurrentDirectory(), proxyConfigPath);
-            
+
         if (!File.Exists(fullProxyConfigPath))
         {
             throw new FileNotFoundException(
