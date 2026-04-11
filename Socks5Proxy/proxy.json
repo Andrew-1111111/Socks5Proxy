@@ -1,8 +1,11 @@
 ﻿{
   "ListenIPAddress": "0.0.0.0",
   "ListenPort": 1080,
-  "OutputIPAddress": "",
-  "OutputInterfaceName": "tap1",
+  "OutputIPAddress": [],
+  "OutputInterfaceName": [
+    "tap1",
+    "tun2"
+  ],
   "DnsServer": "172.29.172.254",
   "MaxConnections": 1000,
   "RunDelayS": 30,

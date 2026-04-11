@@ -25,12 +25,12 @@ internal class ProxyConfiguration
     /// <summary>
     /// The output IP address to destination connections. Can be IPv4, IPv6, or "0.0.0.0" for all interfaces.
     /// </summary>
-    public string? OutputIPAddress { get; set; }
+    public List<string?> OutputIPAddress { get; set; } = [];
 
     /// <summary>
     /// The output network interface name to destination connections.
     /// </summary>
-    public string? OutputInterfaceName { get; set; }
+    public List<string?> OutputInterfaceName { get; set; } = [];
 
     /// <summary>
     /// DNS server address. Can be IPv4, IPv6.
@@ -61,27 +61,42 @@ internal class ProxyConfiguration
     public bool IsValid(out string errorMessage)
     {
         // Wait N second before run application
-        if (RunDelayS > 0)
-        {
-            Thread.Sleep(TimeSpan.FromSeconds(RunDelayS));
-        }
+        if (RunDelayS > 0) Thread.Sleep(TimeSpan.FromSeconds(RunDelayS));
 
         // Set listen address and port
         if (!NetworkConfiguration.SetServerInterfaceIP(ListenIPAddress, ListenPort, out errorMessage)) 
             return false;
 
         // Validate and set output IP address and port
-        if (!string.IsNullOrWhiteSpace(OutputIPAddress))
+        if (OutputIPAddress.Count > 0)
         {
-            if (!NetworkConfiguration.SetOutputInterfaceIP(OutputIPAddress, out errorMessage)) 
-                return false;
+            var success = false;
+            foreach (var addr in OutputIPAddress)
+            {
+                if (!string.IsNullOrEmpty(addr) 
+                    && NetworkConfiguration.SetOutputInterfaceIP(addr, out errorMessage))
+                {
+                    success = true; 
+                    break;
+                }
+            }
+            if (!success) return false;
         }
 
         // Validate and set output network interface name
-        if (!string.IsNullOrWhiteSpace(OutputInterfaceName))
+        if (OutputInterfaceName.Count > 0)
         {
-            if (!NetworkConfiguration.SetOutputInterfaceName(OutputInterfaceName, out errorMessage)) 
-                return false;
+            var success = false;
+            foreach (var ifaceName in OutputInterfaceName)
+            {
+                if (!string.IsNullOrEmpty(ifaceName) 
+                    && NetworkConfiguration.SetOutputInterfaceName(ifaceName, out errorMessage))
+                {
+                    success = true;
+                    break;
+                }
+            }
+            if (!success) return false;
         }
 
         // Validate and set Dns server
