@@ -3,6 +3,7 @@ using Serilog;
 using Socks5Proxy.Configuration;
 using Socks5Proxy.Friendly;
 using Socks5Proxy.Helper;
+using Socks5Proxy.Helper.Firewall.Windows;
 using Socks5Proxy.Server;
 using System;
 using System.IO;
@@ -56,6 +57,17 @@ internal class Program
             {
                 logger.Error("Application requires administrator/root privileges to run.");
                 return 3; // Terminate current instance, elevated one may have started
+            }
+
+            // Add Firewall rules (ONLY FOR WINDOWS)
+            if (OperatingSystem.IsWindows())
+            {
+                if (!WindowsFirewallHelper.AllowApplication(Environment.ProcessPath!, 
+                    Path.GetFileNameWithoutExtension(Environment.ProcessPath!)))
+                {
+                    logger.Error("Failed to apply Windows Firewall rules for this application. " +
+                        "The application may not work correctly without network access.");
+                }
             }
 
             // Create friendly name resolver (safe even if no mappings)

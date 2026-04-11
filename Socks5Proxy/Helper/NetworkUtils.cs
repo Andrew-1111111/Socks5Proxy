@@ -3,6 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Socks5Proxy.Helper;
 
@@ -145,5 +146,73 @@ internal static class NetworkUtils
         }
 
         return IPAddress.None;
+    }
+
+    /// <summary>
+    /// Checks whether a DNS server is reachable by sending a minimal DNS query over UDP.
+    /// </summary>
+    /// <param name="dnsServer">DNS server IP address (e.g., "8.8.8.8").</param>
+    /// <param name="timeoutMs">Timeout for each attempt in milliseconds.</param>
+    /// <param name="retries">Number of retry attempts.</param>
+    /// <param name="delayMs">Delay between retries in milliseconds.</param>
+    /// <returns>True if at least one attempt succeeds; otherwise false.</returns>
+    public static bool CheckDns(IPAddress dnsServer, int timeoutMs = 5000, int retries = 2, int delayMs = 200)
+    {
+        for (int attempt = 1; attempt <= retries; attempt++)
+        {
+            try
+            {
+                using var udp = new UdpClient();
+                udp.Connect(dnsServer, 53);
+
+                // Set timeouts on underlying socket
+                udp.Client.ReceiveTimeout = timeoutMs;
+                udp.Client.SendTimeout = timeoutMs;
+
+                // Minimal DNS query for "google.com"
+                var query = new byte[]
+                {
+                        0x12, 0x34, // Transaction ID
+                        0x01, 0x00, // Standard query
+                        0x00, 0x01, // Questions
+                        0x00, 0x00,
+                        0x00, 0x00,
+                        0x00, 0x00,
+
+                        // "google.com"
+                        0x06, (byte)'g', (byte)'o', (byte)'o', (byte)'g', (byte)'l', (byte)'e',
+                        0x03, (byte)'c', (byte)'o', (byte)'m',
+                        0x00,
+
+                        0x00, 0x01, // Type A
+                        0x00, 0x01  // Class IN
+                };
+
+                udp.Send(query, query.Length);
+
+                var remoteEndPoint = new IPEndPoint(0, 0);
+                var response = udp.Receive(ref remoteEndPoint);
+
+                if (response != null && response.Length > 0)
+                    return true;
+            }
+            catch (SocketException ex)
+            {
+                if (ex.SocketErrorCode != SocketError.TimedOut)
+                {
+                    // Optional: break early on non-timeout errors
+                    // return false;
+                }
+            }
+            catch
+            {
+                // Ignore and retry
+            }
+
+            if (attempt < retries)
+                Thread.Sleep(delayMs);
+        }
+
+        return false;
     }
 }

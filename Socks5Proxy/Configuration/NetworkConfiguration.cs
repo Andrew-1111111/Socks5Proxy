@@ -222,6 +222,11 @@ internal static class NetworkConfiguration
             errorMessage = $"Dns IP address family '{ip.AddressFamily}' is not supported.";
         }
 
+        if (!NetworkUtils.CheckDns(ip))
+        {
+            errorMessage = $"DNS server '{ip}' is unreachable or not responding (timeout).";
+        }
+
         DnsServer = ip;
         return true;
     }
