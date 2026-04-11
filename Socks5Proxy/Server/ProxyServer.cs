@@ -39,10 +39,10 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
             _listener.Start();
 
             var localEndPoint = _listener.LocalEndpoint;
-            _logger.Information(
-                "SOCKS5 proxy server started on: {LocalEndPoint}{Friendly}",
-                localEndPoint,
+            _logger.Information("SOCKS5 proxy server started on: {LocalEndPoint}{Friendly}", localEndPoint,
                 _resolver.FriendlySuffix(localEndPoint));
+
+            logger.Information($"------------------------------------------------");
 
             // Register cancellation callback to stop the listener
             using var registration = cancellationToken.Register(() =>
@@ -65,7 +65,8 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
                     // Check max connection limit
                     if (NetworkConfiguration.MaxConnections > 0 && _activeConnections.Count >= NetworkConfiguration.MaxConnections)
                     {
-                        _logger.Warning("Max connections ({MaxConnections}) reached, waiting before accepting new connections", NetworkConfiguration.MaxConnections);
+                        _logger.Warning("Max connections ({MaxConnections}) reached, waiting before accepting new connections", 
+                            NetworkConfiguration.MaxConnections);
                         await Task.Delay(500, cancellationToken).ConfigureAwait(false);
                         continue;
                     }

@@ -35,7 +35,7 @@ internal class ProxyConfiguration
     /// <summary>
     /// DNS server address. Can be IPv4, IPv6.
     /// </summary>
-    public string DnsServer { get; set; } = string.Empty;
+    public string? DnsServer { get; set; }
 
     /// <summary>
     /// Optional mappings of IP addresses to friendly names for log output.
@@ -53,6 +53,16 @@ internal class ProxyConfiguration
     /// </summary>
     [Range(0, int.MaxValue, ErrorMessage = "RunDelayS must be 0 or a positive number.")]
     public int RunDelayS { get; set; } = 0;
+
+    /// <summary>
+    /// Username used for SOCKS5 authentication.
+    /// </summary>
+    public string? Username { get; set; }
+
+    /// <summary>
+    /// Password used for SOCKS5 authentication.
+    /// </summary>
+    public string? Password { get; set; }
 
     /// <summary>
     /// Validates that the IP address is valid.
@@ -109,6 +119,13 @@ internal class ProxyConfiguration
         // Set Max connections
         if (!NetworkConfiguration.SetMaxConnections(MaxConnections, out errorMessage))
             return false;
+
+        // Set Username and Password
+        if (!string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password))
+        {
+            if (!NetworkConfiguration.SetUsernamePassword(Username, Password, out errorMessage))
+                return false;
+        }
 
         return true;
     }

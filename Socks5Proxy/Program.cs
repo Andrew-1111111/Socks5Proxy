@@ -88,7 +88,9 @@ internal class Program
             // Create and start the server
             server = new ProxyServer(logger, resolver);
 
-            logger.Information("OutputIPAddress: {Address}", NetworkConfiguration.OutputInterfaceIP);
+            logger.Information("Listen IP address: {Address}", NetworkConfiguration.ListenIPAddress);
+            logger.Information("Listen port: {Port}", NetworkConfiguration.ListenPort);
+            logger.Information("Output IP address: {Address}", NetworkConfiguration.OutputInterfaceIP);
             logger.Information("DNS address: {Address}", NetworkConfiguration.DnsServer);
             logger.Information("Starting SOCKS5 proxy server on: {Address}:{Port}",
                 NetworkConfiguration.ListenIPAddress, NetworkConfiguration.ListenPort);

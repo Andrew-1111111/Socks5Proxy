@@ -1,27 +1,27 @@
-﻿namespace Socks5Proxy.Server.Protocol;
+﻿namespace Socks5Proxy.Server.Protocol.Autentification;
 
 /// <summary>
 /// SOCKS5 authentication methods
 /// </summary>
-internal static class AuthMethod
+internal enum AuthMethod : byte
 {
     /// <summary>
     /// No authentication required
     /// </summary>
-    public const byte NoAuth = 0x00;
+    NoAuth = 0x00,
 
     /// <summary>
     /// GSSAPI authentication
     /// </summary>
-    public const byte GSSAPI = 0x01;
+    GSSAPI = 0x01,
 
     /// <summary>
     /// Username/password authentication
     /// </summary>
-    public const byte UsernamePassword = 0x02;
+    UsernamePassword = 0x02,
 
     /// <summary>
     /// No acceptable methods
     /// </summary>
-    public const byte NoAcceptableMethods = 0xFF;
+    NoAcceptableMethods = 0xFF
 }

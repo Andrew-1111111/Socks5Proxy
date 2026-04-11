@@ -1,5 +1,6 @@
 ﻿using Serilog;
 using Socks5Proxy.Friendly;
+using Socks5Proxy.Server.Protocol.Autentification;
 using Socks5Proxy.Server.Protocol.DNS;
 using Socks5Proxy.Server.Protocol.UDP;
 using System;
@@ -63,7 +64,7 @@ internal class ConnectionHandler : IAsyncDisposable
             using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             handshakeCts.CancelAfter(TimeSpan.FromSeconds(30));
 
-            // Step 1: SOCKS5 handshake
+            // Step 1: SOCKS5 handshake + Autentification
             if (!await PerformHandshakeAsync(handshakeCts.Token).ConfigureAwait(false))
             {
                 _logger.Warning("Handshake failed for client {ClientEndPoint}{Friendly}", clientEndPoint, friendlyClientSuffix);
@@ -138,36 +139,66 @@ internal class ConnectionHandler : IAsyncDisposable
             // Read remaining method bytes
             while (totalRead < 2 + methodCount)
             {
-                var bytesRead = await _clientStream.ReadAsync(buffer.AsMemory(totalRead, 2 + methodCount - totalRead), cancellationToken).ConfigureAwait(false);
+                var bytesRead = await _clientStream
+                    .ReadAsync(buffer.AsMemory(totalRead, 2 + methodCount - totalRead), cancellationToken)
+                    .ConfigureAwait(false);
+
                 if (bytesRead == 0)
                 {
                     _logger.Warning("Connection closed during handshake while reading methods.");
                     return false;
                 }
+
                 totalRead += bytesRead;
             }
 
-            // Check if "No Authentication Required" method is supported
-            bool noAuthSupported = false;
+            // Select server autentification method
+            var authMethod = AuthMethod.NoAcceptableMethods;
+
+            bool hasCredentials =
+                !string.IsNullOrWhiteSpace(NetworkConfiguration.Username) &&
+                !string.IsNullOrWhiteSpace(NetworkConfiguration.Password);
+
+            // Get all supported authentication methods
             for (int i = 0; i < methodCount; i++)
             {
-                if (buffer[2 + i] == AuthMethod.NoAuth)
+                var method = (AuthMethod)buffer[2 + i];
+
+                if (!hasCredentials && method == AuthMethod.NoAuth)
                 {
-                    noAuthSupported = true;
+                    authMethod = AuthMethod.NoAuth;
+                    break;
+                }
+
+                if (hasCredentials && method == AuthMethod.UsernamePassword)
+                {
+                    authMethod = AuthMethod.UsernamePassword;
                     break;
                 }
             }
 
             // Send method selection response (reuse rented buffer to avoid allocation)
             buffer[0] = Socks5Protocol.Version;
-            buffer[1] = noAuthSupported ? AuthMethod.NoAuth : AuthMethod.NoAcceptableMethods;
-
+            buffer[1] = (byte)authMethod;
             await _clientStream.WriteAsync(buffer.AsMemory(0, 2), cancellationToken).ConfigureAwait(false);
 
-            if (!noAuthSupported)
+            if (authMethod == AuthMethod.NoAcceptableMethods)
             {
-                _logger.Warning("Client does not support 'No Authentication Required' method.");
+                _logger.Warning("Client does not support 'NoAuth' and 'Username/Password' methods.");
                 return false;
+            }
+
+            if (authMethod == AuthMethod.UsernamePassword)
+            {
+                bool success = await AuthPacketValidator
+                    .ValidateUsernamePasswordAsync(_clientStream, buffer, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!success)
+                {
+                    _logger.Warning("Username/Password authentication failed for client.");
+                    return false;
+                }
             }
 
             _logger.Debug("Handshake completed successfully.");
@@ -263,13 +294,19 @@ internal class ConnectionHandler : IAsyncDisposable
     private async Task<bool> ReadExactAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
         var totalRead = 0;
+
         while (totalRead < count)
         {
-            var bytesRead = await _clientStream.ReadAsync(buffer.AsMemory(offset + totalRead, count - totalRead), cancellationToken).ConfigureAwait(false);
+            var bytesRead = await _clientStream
+                .ReadAsync(buffer.AsMemory(offset + totalRead, count - totalRead), cancellationToken)
+                .ConfigureAwait(false);
+
             if (bytesRead == 0)
                 return false;
+
             totalRead += bytesRead;
         }
+
         return true;
     }
 

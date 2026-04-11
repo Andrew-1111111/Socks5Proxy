@@ -6,13 +6,15 @@
     "tap1",
     "tun2"
   ],
-  "DnsServer": "172.29.172.254",
+  "DnsServer": "8.8.8.8",
   "MaxConnections": 1000,
-  "RunDelayS": 30,
+  "RunDelayS": 0,
+  "Username": "",
+  "Password": "",
   "IPAddressMappings": [
     {
-      "IPAddress": "192.168.250.101",
-      "FriendlyName": "Windows 10"
+      "IPAddress": "192.168.0.10",
+      "FriendlyName": "PC_1"
     }
   ]
 }
