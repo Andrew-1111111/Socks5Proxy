@@ -1,5 +1,4 @@
 ﻿using Serilog;
-using Serilog.Core;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -40,9 +39,9 @@ namespace Socks5Proxy.Server.Protocol.DNS
         private const int CacheDropSize = 1000;             // Number of any entries to remove when cache exceeds MaxCacheSize
         private const int MaxCompressionJumps = 20;         // Maximum allowed DNS compression pointer jumps to prevent loops
         private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        private readonly IPEndPoint _dnsEndpoint = new(dnsServer, 53);   // Target DNS server endpoint
-        private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(5);    // Per-query timeout
-        private readonly byte[] _idBuffer = new byte[2];    // Reusable buffer for DNS transaction ID generation
+        private readonly IPEndPoint _dnsEndpoint = new(dnsServer, 53);           // Target DNS server endpoint
+        private readonly TimeSpan _timeout = timeout ?? TimeSpan.FromSeconds(5); // Per-query timeout
+        private readonly byte[] _idBuffer = new byte[2];                         // Reusable buffer for DNS transaction ID generation
 
         /// <summary>
         /// Resolves a domain name to an IP address (IPv4 or IPv6).
@@ -81,8 +80,7 @@ namespace Socks5Proxy.Server.Protocol.DNS
                 // Take the fastest result
                 var completed = await Task.WhenAny(aTask, aaaaTask).ConfigureAwait(false);
 
-                try { result = await completed.ConfigureAwait(false); }
-                finally { cts.Cancel(); }
+                result = await completed.ConfigureAwait(false);
 
                 // Fallback to the other query if result is empty
                 if (result.Address == null)
@@ -205,8 +203,10 @@ namespace Socks5Proxy.Server.Protocol.DNS
                         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
                         // Socket options
-                        client.NoDelay = true;                          // Enable Naggle
-                        client.LingerState = new LingerOption(true, 0); // RST send
+                        client.Client.ReceiveTimeout = NetworkConfiguration.DnsReceiveTimeout;      // 5 seconds
+                        client.Client.SendTimeout = NetworkConfiguration.DnsSendTimeout;            // 5 seconds
+                        client.Client.NoDelay = NetworkConfiguration.NoDelay;                       // Disable Nagle's algorithm for better latency
+                        client.Client.LingerState = NetworkConfiguration.LingerState;               // RST send
 
                         await client.ConnectAsync(_dnsEndpoint.Address, 53, linked.Token).ConfigureAwait(false);
                         var stream = client.GetStream();

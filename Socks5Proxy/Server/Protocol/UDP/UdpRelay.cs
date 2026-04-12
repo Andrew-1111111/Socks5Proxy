@@ -4,7 +4,6 @@ using Socks5Proxy.Server.Protocol.DNS;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -88,8 +87,8 @@ namespace Socks5Proxy.Server.Protocol.UDP
                 });
 
             _udpClient = new UdpClient(_clientTcpEndPoint.AddressFamily);
-            _udpClient.Client.SendBufferSize = NetworkConfiguration.SendBufferSize;
-            _udpClient.Client.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
+            _udpClient.Client.SendBufferSize = NetworkConfiguration.SendBufferSize;         // Send buffer size
+            _udpClient.Client.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;   // Receive buffer size
             _udpClient.Client.Bind(new IPEndPoint(NetworkConfiguration.OutputInterfaceIP, 0));
 
             LocalEndPoint = (IPEndPoint)_udpClient.Client.LocalEndPoint!;

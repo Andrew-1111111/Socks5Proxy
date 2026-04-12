@@ -62,7 +62,7 @@ internal class ConnectionHandler : IAsyncDisposable
 
             // Use a timeout for the handshake and request phases to prevent slowloris attacks
             using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            handshakeCts.CancelAfter(TimeSpan.FromSeconds(30));
+            handshakeCts.CancelAfter(NetworkConfiguration.IdleTimeout);
 
             // Step 1: SOCKS5 handshake + Autentification
             if (!await PerformHandshakeAsync(handshakeCts.Token).ConfigureAwait(false))
@@ -449,16 +449,16 @@ internal class ConnectionHandler : IAsyncDisposable
         try
         {
             // Set socket options
-            socket.SendTimeout = NetworkConfiguration.SendTimeout;
-            socket.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;
-            socket.SendBufferSize = NetworkConfiguration.SendBufferSize;
-            socket.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
-            socket.LingerState = new LingerOption(true, 0); // RST send
-            socket.NoDelay = true;                          // Enable Naggle
+            socket.SendTimeout = NetworkConfiguration.SendTimeout;              // 30 seconds
+            socket.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;        // 30 seconds
+            socket.SendBufferSize = NetworkConfiguration.SendBufferSize;        // Send buffer size
+            socket.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;  // Receive buffer size
+            socket.NoDelay = NetworkConfiguration.NoDelay;                      // Disable Nagle's algorithm for better latency
+            socket.LingerState = NetworkConfiguration.LingerState;              // RST send
             socket.Bind(new IPEndPoint(NetworkConfiguration.OutputInterfaceIP, 0));
 
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            connectCts.CancelAfter(TimeSpan.FromSeconds(15));
+            connectCts.CancelAfter(NetworkConfiguration.ConnectTimeout);
 
             await socket.ConnectAsync(destinationIP, port, connectCts.Token).ConfigureAwait(false);
 
@@ -616,9 +616,9 @@ internal class ConnectionHandler : IAsyncDisposable
             // Configure pipe options for better network I/O performance
             var pipeOptions = new PipeOptions(
                 pool: MemoryPool<byte>.Shared,
-                minimumSegmentSize: 4096,
-                pauseWriterThreshold: 64 * 1024,
-                resumeWriterThreshold: 32 * 1024);
+                minimumSegmentSize: NetworkConfiguration.MinimumSegmentSize,
+                pauseWriterThreshold: NetworkConfiguration.PauseWriterSize,
+                resumeWriterThreshold: NetworkConfiguration.ResumeWriterSize);
 
             // Create pipes for bidirectional data flow
             var clientToDestinationPipe = new Pipe(pipeOptions);
@@ -674,7 +674,7 @@ internal class ConnectionHandler : IAsyncDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var memory = writer.GetMemory(4096);
+                var memory = writer.GetMemory(NetworkConfiguration.GetMemoryСhunk);
                 var bytesRead = await stream.ReadAsync(memory, cancellationToken).ConfigureAwait(false);
 
                 if (bytesRead == 0)

@@ -74,19 +74,11 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
                     // Get TCP client
                     var tcpClient = await _listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
 
-                    // Socket options
-                    tcpClient.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;     // 30 seconds
-                    tcpClient.SendTimeout = NetworkConfiguration.SendTimeout;           // 30 seconds
-                    tcpClient.SendBufferSize = NetworkConfiguration.SendBufferSize;
-                    tcpClient.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;
-                    tcpClient.NoDelay = NetworkConfiguration.NoDelay;                   // Disable Nagle's algorithm for better latency
-                    tcpClient.LingerState = NetworkConfiguration.LingerState;           // RST send
-
                     // Handle client connection in background task
                     var connectionId = Interlocked.Increment(ref _connectionIdCounter);
                     var task = Task.Run(async () => 
                         await HandleClientConnectionAsync(tcpClient, connectionId, cancellationToken).ConfigureAwait(false),
-                        CancellationToken.None);
+                        cancellationToken);
                     _connectionTasks[connectionId] = task;
                 }
                 catch (OperationCanceledException)
@@ -116,7 +108,7 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
                     // Brief delay to prevent tight loop on persistent errors
                     try
                     {
-                        await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+                        await Task.Delay(200, cancellationToken).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -152,6 +144,14 @@ internal class ProxyServer(ILogger logger, FriendlyNameResolver resolver) : IAsy
 
         try
         {
+            // Socket options
+            tcpClient.ReceiveTimeout = NetworkConfiguration.ReceiveTimeout;         // 30 seconds
+            tcpClient.SendTimeout = NetworkConfiguration.SendTimeout;               // 30 seconds
+            tcpClient.SendBufferSize = NetworkConfiguration.SendBufferSize;         // Send buffer size
+            tcpClient.ReceiveBufferSize = NetworkConfiguration.ReceiveBufferSize;   // Receive buffer size
+            tcpClient.NoDelay = NetworkConfiguration.NoDelay;                       // Disable Nagle's algorithm for better latency
+            tcpClient.LingerState = NetworkConfiguration.LingerState;               // RST send
+
             handler = new ConnectionHandler(tcpClient, _dnsClient, _logger, _resolver);
 
             // Add to active connections using ConcurrentDictionary

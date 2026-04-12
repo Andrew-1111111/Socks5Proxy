@@ -11,12 +11,12 @@ internal static class NetworkConfiguration
     /// <summary>
     /// Gets or sets the IP address the SOCKS5 server listens on.
     /// </summary>
-    internal static IPAddress ListenIPAddress { get; set; } = IPAddress.Any;
+    internal static IPAddress ListenIPAddress { get; private set; } = IPAddress.Any;
 
     /// <summary>
     /// Gets or sets the port the SOCKS5 server listens on.
     /// </summary>
-    internal static int ListenPort { get; set; } = 1080;
+    internal static int ListenPort { get; private set; } = 1080;
 
     /// <summary>
     /// Gets a value indicating whether IPv6 is available on the selected output interface.
@@ -36,31 +36,53 @@ internal static class NetworkConfiguration
     /// <summary>
     /// Gets or sets the maximum number of simultaneous connections allowed.
     /// </summary>
-    internal static int MaxConnections { get; set; } = 1000;
+    internal static int MaxConnections { get; private set; } = 1000;
 
     /// <summary>
     /// Gets or sets the username used for SOCKS5 Username/Password authentication.
     /// </summary>
-    internal static string? Username { get; set; }
+    internal static string? Username { get; private set; }
 
     /// <summary>
     /// Gets or sets the password used for SOCKS5 Username/Password authentication.
     /// </summary>
-    internal static string? Password { get; set; }
+    internal static string? Password { get; private set; }
 
     #endregion
 
     #region Socket Options
 
-    internal static int SendTimeout { get; set; } = 120_000;
-    internal static int ReceiveTimeout { get; set; } = 120_000;
+    internal static int IdleTimeout { get; private set; } = 60_000;
 
-    internal static int SendBufferSize = 1024 * 1024;
-    internal static int ReceiveBufferSize = 1024 * 1024;
+    internal static int ConnectTimeout { get; private set; } = 15_000;
 
-    internal static LingerOption LingerState { get; set; } = new LingerOption(true, 0);
+    internal static int SendTimeout { get; private set; } = 30_000;
 
-    internal static bool NoDelay { get; set; } = true;
+    internal static int ReceiveTimeout { get; private set; } = 30_000;
+
+    internal static int DnsSendTimeout { get; private set; } = 5000;
+
+    internal static int DnsReceiveTimeout { get; private set; } = 5000;
+
+    internal static int SendBufferSize { get; private set; } = 1024 * 1024;
+
+    internal static int ReceiveBufferSize { get; private set; } = 1024 * 1024;
+
+    internal static LingerOption LingerState { get; private set; } = new LingerOption(true, 0);
+
+    internal static bool NoDelay { get; private set; } = true;
+
+    #endregion
+
+    #region Pipe Options
+
+    internal static int MinimumSegmentSize { get; private set; } = 16 * 1024;       // 16 KB
+
+    internal static int PauseWriterSize { get; private set; } = 4 * 1024 * 1024;    // 4 MB
+
+    internal static int ResumeWriterSize { get; private set; } = 2 * 1024 * 1024;   // 2 MB
+
+    internal static int GetMemoryСhunk { get; private set; } = 64 * 1024;           // 64 KB
 
     #endregion
 
