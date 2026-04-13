@@ -1,4 +1,4 @@
-﻿namespace Socks5Proxy.Server.Protocol.Autentification;
+﻿namespace Socks5Proxy.Server.Protocol.Authentication;
 
 /// <summary>
 /// SOCKS5 authentication methods

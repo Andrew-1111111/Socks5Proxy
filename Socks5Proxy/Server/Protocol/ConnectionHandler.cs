@@ -1,6 +1,7 @@
 ﻿using Serilog;
+using Socks5Proxy.Configuration;
 using Socks5Proxy.Friendly;
-using Socks5Proxy.Server.Protocol.Autentification;
+using Socks5Proxy.Server.Protocol.Authentication;
 using Socks5Proxy.Server.Protocol.DNS;
 using Socks5Proxy.Server.Protocol.UDP;
 using System;

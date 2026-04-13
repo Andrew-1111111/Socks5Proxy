@@ -1,4 +1,4 @@
-﻿namespace Socks5Proxy.Server.Protocol;
+﻿namespace Socks5Proxy.Server.Protocol.Authentication;
 
 /// <summary>
 /// SOCKS5 Username/Password authentication protocol constants (RFC 1929).

@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Socks5Proxy.Configuration;
+using System;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Socks5Proxy.Server.Protocol.Autentification;
+namespace Socks5Proxy.Server.Protocol.Authentication;
 
 internal static class AuthPacketValidator
 {

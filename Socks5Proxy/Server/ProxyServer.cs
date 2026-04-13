@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using Socks5Proxy.Configuration;
 using Socks5Proxy.Friendly;
 using Socks5Proxy.Server.Protocol;
 using Socks5Proxy.Server.Protocol.DNS;
