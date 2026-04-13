@@ -90,7 +90,7 @@ internal static class NetworkConfiguration
     /// Sets the SOCKS5 server listening interface and port.
     /// </summary>
     /// <param name="ipString">The IP address to bind the server to.</param>
-    /// <param name="port">The TCP port to listen on.</param>
+    /// <param name="port">The TCP port to listen on. If port 0 is selected, the system will automatically select a random port.</param>
     /// <param name="errorMessage">When the method returns false, contains a description of the validation error.</param>
     /// <returns>
     /// <c>true</c> if the configuration was successfully applied; otherwise, <c>false</c>.

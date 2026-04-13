@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using System.Threading;
 
 namespace Socks5Proxy.Configuration;
@@ -17,9 +18,10 @@ internal class ProxyConfiguration
     public string ListenIPAddress { get; set; } = string.Empty;
 
     /// <summary>
-    /// The port to listen on. Must be between 1 and 65535.
+    /// The port to listen on. Must be between 0 and 65535. 
+    /// If port 0 is selected, the system will automatically select a random port.
     /// </summary>
-    [Range(1, 65535, ErrorMessage = "ListenPort must be between 1 and 65535.")]
+    [Range(IPEndPoint.MinPort, IPEndPoint.MaxPort, ErrorMessage = "ListenPort must be between 0 and 65535.")]
     public int ListenPort { get; set; }
 
     /// <summary>

@@ -98,7 +98,7 @@ dotnet run --project Socks5Proxy -- --config "D:\path\to\proxy.json"
 ## Configuration
 
 - `ListenIPAddress` — IP address the SOCKS5 server listens on (e.g. `127.0.0.1` or `0.0.0.0`).
-- `ListenPort` — TCP listen port (range: 1–65535).
+- `ListenPort` — TCP listen port (range: 0–65535). If port 0 is selected, the system will automatically select a random port.
 - `OutputIPAddress` — list of local interface IPs for outbound connections. The app picks the first available working address. May be `null`.
 - `OutputInterfaceName` — list of network interface names for outbound connections. The app picks the first available working interface. Takes precedence over `OutputIPAddress`. May be `null`.
 - `DnsServer` — DNS server IP for resolving domain names. May be `null`.
