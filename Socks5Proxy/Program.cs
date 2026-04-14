@@ -75,19 +75,28 @@ internal class Program
             var resolver = new FriendlyNameResolver(proxyConfig.IPAddressMappings, logger);
 
             // Setup cancellation token for graceful shutdown
-            using var cancellationTokenSource = new CancellationTokenSource();
+            using var cts = new CancellationTokenSource();
 
             // Handle Ctrl+C gracefully
             Console.CancelKeyPress += (sender, e) =>
             {
                 logger.Information("Shutdown signal received, stopping server...");
                 e.Cancel = true; // Prevent immediate termination
-                cancellationTokenSource.Cancel();
+                cts.Cancel();
             };
+
+            // Run network interface monitoring
+            _ = Task.Run(() =>
+            new NetworkMonitoring(logger).Run(
+                NetworkConfiguration.ListenIPAddress,
+                NetworkConfiguration.OutputInterfaceIP,
+                cts.Token),
+            cts.Token);
 
             // Create and start the server
             server = new ProxyServer(logger, resolver);
 
+            logger.Information("Network monitoring: runned.");
             logger.Information("Listen IP address: {Address}", NetworkConfiguration.ListenIPAddress);
             logger.Information("Listen port: {Port}", NetworkConfiguration.ListenPort);
             logger.Information("Output IP address: {Address}", NetworkConfiguration.OutputInterfaceIP);
@@ -95,7 +104,7 @@ internal class Program
             logger.Information("Starting SOCKS5 proxy server on: {Address}:{Port}",
                 NetworkConfiguration.ListenIPAddress, NetworkConfiguration.ListenPort);
 
-            await server.StartAsync(cancellationTokenSource.Token).ConfigureAwait(false);
+            await server.StartAsync(cts.Token).ConfigureAwait(false);
 
             logger.Information("SOCKS5 proxy server stopped gracefully.");
             return 0;

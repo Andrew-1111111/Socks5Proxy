@@ -215,4 +215,76 @@ internal static class NetworkUtils
 
         return false;
     }
+
+    /// <summary>
+    /// Resolves a network interface by IP address. If the address is 0.0.0.0 or IPv6 any (::),
+    /// returns the first available operational non-loopback interface.
+    /// </summary>
+    /// <param name="address">
+    /// The IP address used to locate the network interface. IPAddress.Any (0.0.0.0)
+    /// and IPAddress.IPv6Any (::) select any available active interface.
+    /// </param>
+    /// <returns>
+    /// A matching <see cref="NetworkInterface"/>, or null if no suitable interface is found.
+    /// </returns>
+    public static NetworkInterface? ResolveInterface(IPAddress address)
+    {
+        // 0.0.0.0 => ANY interface
+        if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any))
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(n =>
+                    n.OperationalStatus == OperationalStatus.Up &&
+                    n.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+        }
+
+        return GetInterface(address);
+    }
+
+    /// <summary>
+    /// Returns a network interface that has the specified IP address assigned.
+    /// </summary>
+    /// <param name="address">IP address to search for.</param>
+    /// <returns>
+    /// The matching <see cref="NetworkInterface"/>, or null if not found or if an error occurs.
+    /// </returns>
+    public static NetworkInterface? GetInterface(IPAddress address)
+    {
+        if (address == null)
+            return null;
+
+        try
+        {
+            var interfaces = NetworkInterface.GetAllNetworkInterfaces();
+
+            foreach (var ni in interfaces)
+            {
+                try
+                {
+                    var ipProps = ni.GetIPProperties();
+                    if (ipProps?.UnicastAddresses == null)
+                        continue;
+
+                    foreach (var ua in ipProps.UnicastAddresses)
+                    {
+                        if (ua?.Address == null)
+                            continue;
+
+                        if (ua.Address.Equals(address))
+                            return ni;
+                    }
+                }
+                catch
+                {
+                    continue; // Skip broken or inaccessible interface
+                }
+            }
+        }
+        catch
+        {
+            return null; // System network API failure - return safe fallback
+        }
+
+        return null;
+    }
 }
