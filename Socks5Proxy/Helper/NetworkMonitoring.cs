@@ -15,7 +15,9 @@ namespace Socks5Proxy.Helper;
 internal class NetworkMonitoring(ILogger logger)
 {
     private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    private const int IntervalMs = 5000;
+    private readonly TimeSpan _intervalMs = TimeSpan.FromSeconds(5);
+    private int _currentNetworkCheck = 0;
+    private const int MaxNetworkCheckRetry = 3;
 
     /// <summary>
     /// Starts monitoring the specified network interfaces.
@@ -30,25 +32,35 @@ internal class NetworkMonitoring(ILogger logger)
        IPAddress outputAddress,
        CancellationToken cancellationToken = default)
     {
-        var listener = NetworkUtils.ResolveInterface(listenerAddress);
-        var output = NetworkUtils.ResolveInterface(outputAddress);
-
-        if (listener == null) 
-            _logger.Fatal("Listener interface could not be resolved.");
-        
-
-        if (output == null)
-            _logger.Fatal("Output interface could not be resolved.");
-        
         while (!cancellationToken.IsCancellationRequested)
         {
+            var allSuccess = 0;
             var currentListener = NetworkUtils.ResolveInterface(listenerAddress);
             var currentOutput = NetworkUtils.ResolveInterface(outputAddress);
 
-            ValidateInterface(currentListener, "Listener", listenerAddress);
-            ValidateInterface(currentOutput, "Output", outputAddress);
+            if (!ValidateInterface(currentListener, "Listener", listenerAddress))
+            {
+                _currentNetworkCheck++;
+            }
+            else { allSuccess++; }
 
-            await Task.Delay(IntervalMs, cancellationToken);
+            if (!ValidateInterface(currentOutput, "Output", outputAddress))
+            {
+                _currentNetworkCheck++;
+            }
+            else { allSuccess++; }
+
+            if (allSuccess >= 2)
+            {
+                _currentNetworkCheck = 0;
+            }
+            else if (_currentNetworkCheck >= MaxNetworkCheckRetry)
+            {
+                // Restart application
+                AdminLauncher.RestartApplication();
+            }
+
+            await Task.Delay(_intervalMs, cancellationToken);
         }
     }
 
@@ -58,18 +70,21 @@ internal class NetworkMonitoring(ILogger logger)
     /// <param name="ni">Network interface instance to validate.</param>
     /// <param name="tag">Label used in logs to identify whether this is Listener or Output.</param>
     /// <param name="address">IP address associated with the interface lookup.</param>
-    private void ValidateInterface(NetworkInterface? ni, string tag, IPAddress address)
+    /// 
+    private bool ValidateInterface(NetworkInterface? ni, string tag, IPAddress address)
     {
         if (ni == null)
         {
             _logger.Error("{Tag} interface not found for IP: {IP}", tag, address);
-            return;
+            return false;
         }
 
         if (ni.OperationalStatus != OperationalStatus.Up)
         {
-            _logger.Error("{Tag} interface is not UP: {Name} ({Status})",
-                tag, ni.Name, ni.OperationalStatus);
+            _logger.Error("{Tag} interface is not UP: {Name} ({Status})", tag, ni.Name, ni.OperationalStatus);
+            return false;
         }
+
+        return true;
     }
 }

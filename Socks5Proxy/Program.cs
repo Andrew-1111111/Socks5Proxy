@@ -6,6 +6,7 @@ using Socks5Proxy.Helper;
 using Socks5Proxy.Helper.Firewall.Windows;
 using Socks5Proxy.Server;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,7 @@ internal class Program
     {
         ILogger? logger = null;
         ProxyServer? server = null;
+        using var cts = new CancellationTokenSource();
 
         try
         {
@@ -34,7 +36,7 @@ internal class Program
 
             if (guard.IsRunning)
             {
-                Console.WriteLine($"Another instance is already running.");
+                Console.WriteLine($"Another {Environment.ProcessPath} instance is already running.");
                 return 1;
             }
 
@@ -74,24 +76,21 @@ internal class Program
             // Create friendly name resolver (safe even if no mappings)
             var resolver = new FriendlyNameResolver(proxyConfig.IPAddressMappings, logger);
 
-            // Setup cancellation token for graceful shutdown
-            using var cts = new CancellationTokenSource();
-
             // Handle Ctrl+C gracefully
             Console.CancelKeyPress += (sender, e) =>
             {
                 logger.Information("Shutdown signal received, stopping server...");
                 e.Cancel = true; // Prevent immediate termination
-                cts.Cancel();
+                cts?.Cancel();
             };
 
             // Run network interface monitoring
-            _ = Task.Run(() =>
-            new NetworkMonitoring(logger).Run(
-                NetworkConfiguration.ListenIPAddress,
-                NetworkConfiguration.OutputInterfaceIP,
-                cts.Token),
-            cts.Token);
+            _ = Task.Run(() => 
+                new NetworkMonitoring(logger).Run(
+                    NetworkConfiguration.ListenIPAddress,
+                    NetworkConfiguration.OutputInterfaceIP,
+                    cts.Token),
+                cts.Token);
 
             // Create and start the server
             server = new ProxyServer(logger, resolver);
@@ -143,6 +142,9 @@ internal class Program
         {
             try
             {
+                if (cts != null)
+                    await cts.CancelAsync();
+
                 if (server != null)
                     await server.DisposeAsync().ConfigureAwait(false);
             }

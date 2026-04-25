@@ -101,11 +101,16 @@ internal class ProxyConfiguration
             var success = false;
             foreach (var ifaceName in OutputInterfaceName)
             {
-                if (!string.IsNullOrEmpty(ifaceName) 
-                    && NetworkConfiguration.SetOutputInterfaceName(ifaceName, out errorMessage))
+                var tempError = string.Empty;
+                if (!string.IsNullOrEmpty(ifaceName) && NetworkConfiguration.SetOutputInterfaceName(ifaceName, out tempError))
                 {
                     success = true;
                     break;
+                }
+
+                if (!string.IsNullOrWhiteSpace(tempError))
+                {
+                    errorMessage += tempError + Environment.NewLine;
                 }
             }
             if (!success) return false;

@@ -63,6 +63,40 @@ public static partial class AdminLauncher
     }
 
     /// <summary>
+    /// Forcefully restarts the current application. Can optionally request elevation.
+    /// </summary>
+    public static void RestartApplication(bool requestElevation = false)
+    {
+        var exePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Cannot determine current process path.");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = exePath,
+            UseShellExecute = true
+        };
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            if (requestElevation)
+                startInfo.Verb = "runas";
+        }
+        else
+        {
+            if (requestElevation)
+            {
+                startInfo.FileName = "sudo";
+                startInfo.ArgumentList.Add(exePath);
+            }
+        }
+
+        Process.Start(startInfo);
+
+        // Gracefully exit current process
+        Environment.Exit(0);
+    }
+
+    /// <summary>
     /// Checks whether the current process is running as administrator/root.
     /// </summary>
     private static bool IsElevated()
